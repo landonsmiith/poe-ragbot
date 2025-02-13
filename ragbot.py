@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -120,8 +120,14 @@ stuff_chain = create_stuff_documents_chain(llm, prompt)
 qa_chain = create_retrieval_chain(retriever, stuff_chain)
 
 @app.post("/ask")
-async def ask(query_request: QueryRequest):
-    response = qa_chain.invoke({"input": query_request.query})
+async def ask(request: Request):
+    body = await request.json()
+    query = body.get("query", "").strip()
+
+    if not query:
+        return {"text": "Invalid input. Expected a 'query' field in the request body."}
+
+    response = qa_chain.invoke({"input": query})
 
     answer = response.get("result") or response.get("output_text") or response.get("answer") or "No answer provided."
     sources = [
