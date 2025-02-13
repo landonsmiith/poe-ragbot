@@ -119,13 +119,16 @@ llm = ChatOpenAI(model="gpt-4", api_key=os.environ.get("OPENAI_API_KEY"))
 stuff_chain = create_stuff_documents_chain(llm, prompt)
 qa_chain = create_retrieval_chain(retriever, stuff_chain)
 
+
 @app.post("/ask")
 async def ask(request: Request):
     body = await request.json()
-    query = body.get("query", "").strip()
 
-    if not query:
-        return {"text": "Invalid input. Expected a 'query' field in the request body."}
+    # Poe sends a list of messages; extract the latest user message
+    try:
+        query = body[-1].get("content", "").strip()
+    except (IndexError, AttributeError):
+        return {"text": "Invalid input format. Expected a list of messages."}
 
     response = qa_chain.invoke({"input": query})
 
