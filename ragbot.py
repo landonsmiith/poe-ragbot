@@ -21,9 +21,79 @@ class QueryRequest(BaseModel):
 
 # Load FAISS index
 embeddings = OpenAIEmbeddings(api_key=os.environ.get("OPENAI_API_KEY"))
-vectorstore = FAISS.load_local(
-    "faiss_index", embeddings, allow_dangerous_deserialization=True
-)
+# Rebuild FAISS from docx every time
+
+from docx import Document
+
+def extract_text_from_docx(file_path):
+    doc = Document(file_path)
+    text = []
+    for paragraph in doc.paragraphs:
+        if paragraph.text.strip():
+            text.append(paragraph.text)
+    return "\n".join(text)
+
+def split_by_custom_headings(text):
+    headings = {
+        "Logistics": ["Safety", "Parking", "Building", "Scheduling & Meeting with Faculty and Staff"],
+        "Safety": ["Fire Drill", "Fire Extinguisher Locations", "First Aid", "IAA Pantry", "Secure Facility"],
+        "Building": ["Floorplan / Map", "Datawatch Card", "Lost and Found", "Lockers", "Supplies & Building Maintenance", "Kitchens"],
+        "Kitchens": ["Kitchen Duty", "Food"],
+        "Scheduling & Meeting with Faculty and Staff": ["Calendars", "Conference Rooms", "Email", "Contact Faculty/Staff", "Contact IT Staff", "Meet with Faculty/Staff: ScheduleOnce", "Slack", "Zoom for Meetings"],
+        "Academics": ["Curriculum", "Academic Standing", "Academic Integrity & Code of Student Conduct", "Attendance", "Certifications", "Moodle"],
+        "Attendance": ["Webcast Procedures for Watching Classes Live When Absent"],
+        "Certifications": ["Python", "Tableau Certification", "AWS"],
+        "Attire": ["Business Casual", "Business Formal", "Casual Fridays"],
+        "Practicum": ["Details", "General Travel Overview", "Professional Development", "Peer Feedback"],
+        "Peer Feedback": ["Self-Management", "Relationship Management", "Communication"],
+        "Career Services": ["The actual job search and application process", "Corporate Relations", "Career Education", "CC: Career Conversations"],
+        "Counseling": [],
+        "Class of 2025 Memes": []
+    }
+
+    all_headings = set()
+    for parent, children in headings.items():
+        all_headings.add(parent)
+        all_headings.update(children)
+
+    sections = []
+    current_heading = None
+    current_content = []
+
+    for line in text.splitlines():
+        line = line.strip()
+
+        if line in all_headings:
+            if current_heading is not None and current_content:
+                sections.append((current_heading, "\n".join(current_content)))
+            current_heading = line
+            current_content = []
+        else:
+            current_content.append(line)
+
+    if current_heading is not None and current_content:
+        sections.append((current_heading, "\n".join(current_content)))
+
+    return sections
+
+
+def create_faiss_index(sections):
+    texts = []
+    metadata = []
+
+    for heading, content in sections:
+        combined_text = f"{heading}\n{content}"
+        texts.append(combined_text)
+        metadata.append({"heading": heading})
+
+    vectorstore = FAISS.from_texts(texts, embeddings, metadatas=metadata)
+    return vectorstore
+
+
+handbook_text = extract_text_from_docx("MSA 2025 Handbook.docx")
+sections = split_by_custom_headings(handbook_text)
+vectorstore = create_faiss_index(sections)
+retriever = vectorstore.as_retriever()
 retriever = vectorstore.as_retriever()
 
 # System prompt to enforce handbook-only behavior
