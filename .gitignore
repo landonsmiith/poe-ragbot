@@ -1,0 +1,7 @@
+.env
+__pycache__/
+faiss_index/
+MSA 2025 Handbook.docx
+poe_server_bot_mirror/
+ssh.txt.pub
+bfg-1.15.0.jar
