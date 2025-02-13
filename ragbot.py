@@ -123,10 +123,10 @@ qa_chain = create_retrieval_chain(retriever, stuff_chain)
 async def ask(query_request: QueryRequest):
     response = qa_chain.invoke({"input": query_request.query})
 
-    answer = response["result"]
+    answer = response.get("result") or response.get("output_text") or response.get("answer") or "No answer provided."
     sources = [
         doc.metadata.get("heading", "Unknown Section")
-        for doc in response["source_documents"]
+        for doc in response.get("source_documents", [])
     ]
 
     combined_answer = f"{answer}\n\nSources: {', '.join(sources)}"
