@@ -121,8 +121,18 @@ qa_chain = create_retrieval_chain(retriever, stuff_chain)
 
 @app.post("/ask")
 async def ask(query_request: QueryRequest):
-    result = qa_chain.invoke({"input": query_request.query})
-    return {"answer": result["answer"]}
+    response = qa_chain.invoke({"query": query_request.query})
+
+    answer = response["result"]
+    sources = [
+        doc.metadata.get("heading", "Unknown Section")
+        for doc in response["source_documents"]
+    ]
+
+    # Customize this however you want – Poe only cares that the key is "text"
+    combined_answer = f"{answer}\n\nSources: {', '.join(sources)}"
+
+    return {"text": combined_answer}
 
 # Handbook Processing Functions (Only Run When Updating Handbook)
 
